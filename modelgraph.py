@@ -20,21 +20,23 @@ STYLES = {
 }
 
 
+def update_set(set_, item):
+    if isinstance(item, list):
+        set_.update(item)
+    else:
+        set_.add(item)
+
+
 def add_tech_edges(model, G, tech):
-    carriers_in = set(
-        [
-            v
-            for k, v in model._model_run.techs[tech].essentials.items()
-            if "carrier_in" in k
-        ]
-    )
-    carriers_out = set(
-        [
-            v
-            for k, v in model._model_run.techs[tech].essentials.items()
-            if "carrier_out" in k
-        ]
-    )
+    carriers_in = set()
+    for k, v in model._model_run.techs[tech].essentials.items():
+        if "carrier_in" in k:
+            update_set(carriers_in, v)
+
+    carriers_out = set()
+    for k, v in model._model_run.techs[tech].essentials.items():
+        if "carrier_out" in k:
+            update_set(carriers_out, v)
 
     for c in carriers_in:
         if c in STYLES:
@@ -56,24 +58,22 @@ def add_tech_edges(model, G, tech):
 def model_to_graph(model_file, out_file, scenario):
     model = calliope.Model(model_file, scenario=scenario)
 
-    # Build list of all carriers and list of all techs,
+    # Build set of all carriers and list of all techs
+
+    carriers = set()
+    for tech in model._model_run.techs.keys():
+        for k, v in model._model_run.techs[tech].essentials.items():
+            if "carrier" in k:
+                update_set(carriers, v)
+
+    techs = list(model._model_run.techs.keys())
+
     # then create an undirected graph and add all items
     # from both of these lists as nodes
-    carriers = [
-        [
-            v
-            for k, v in model._model_run.techs[tech].essentials.items()
-            if "carrier" in k
-        ]
-        for tech in model._model_run.techs.keys()
-    ]
-    carriers = set([i for i in itertools.chain.from_iterable(carriers)])
 
     G = nx.DiGraph()
 
     G.add_nodes_from(carriers, kind="carrier", **STYLES["carrier"])
-
-    techs = list(model._model_run.techs.keys())
 
     for tech in techs:
         tech_kind = model._model_run.techs[tech].inheritance[-1]
