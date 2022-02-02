@@ -25,6 +25,16 @@ def update_set(set_, item):
         set_.update(item)
     else:
         set_.add(item)
+        
+def techs_and_carriers_from_set(loc_tech_carriers_set):
+    # loc::tech::carriers -> (locs, techs, carriers)
+    split_set = loc_tech_carriers_set.to_index().str.split("::", expand=True)
+    # transmission techs (tech:remote_loc) -> tech only
+    techs = split_set.levels[1].str.split(":", expand=True).levels[0]
+    
+    carriers = split_set.levels[-1]
+    
+    return techs, carriers
 
 
 def add_tech_edges(model, G, tech):
@@ -60,13 +70,10 @@ def model_to_graph(model_file, out_file, scenario):
 
     # Build set of all carriers and list of all techs
 
-    carriers = set()
-    for tech in model._model_run.techs.keys():
-        for k, v in model._model_run.techs[tech].essentials.items():
-            if "carrier" in k:
-                update_set(carriers, v)
-
-    techs = list(model._model_run.techs.keys())
+    techs_prod, carriers_prod = techs_and_carriers_from_set(model._model_data.loc_tech_carriers_prod)
+    techs_con, carriers_con = techs_and_carriers_from_set(model._model_data.loc_tech_carriers_con)
+    techs = techs_prod.union(techs_con)
+    carriers = carriers_prod.union(carriers_con)
 
     # then create an undirected graph and add all items
     # from both of these lists as nodes
@@ -79,7 +86,7 @@ def model_to_graph(model_file, out_file, scenario):
         tech_kind = model._model_run.techs[tech].inheritance[-1]
         G.add_node(tech, kind=tech_kind, **STYLES.get(tech_kind, STYLES["default"]))
 
-    for tech in model._model_run.techs.keys():
+    for tech in techs:
         add_tech_edges(model, G, tech)
 
     nx.drawing.nx_pydot.write_dot(G, out_file)
